@@ -12,9 +12,9 @@ export default {
                         '200.html',
                         'preact_prerender_data.json',
                         'push-manifest.json',
-						'assets/*',
-						'asset-manifest.json',
-						'polyfills.*',
+			'assets/*',
+			'asset-manifest.json',
+			'polyfills.*',
                     ]
                 })
             ];

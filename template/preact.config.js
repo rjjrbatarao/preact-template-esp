@@ -11,7 +11,10 @@ export default {
                     exclude: [
                         '200.html',
                         'preact_prerender_data.json',
-                        'push-manifest.json'
+                        'push-manifest.json',
+						'assets/*',
+						'asset-manifest.json',
+						'polyfills.*',
                     ]
                 })
             ];

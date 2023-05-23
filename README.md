@@ -85,6 +85,7 @@ namespace static_files
 <ESP8266WebServer.h
 #endif
 #include "web/static_files.h"
+#include <MD5Builder.h>
 
 WebServer server(80);
 
@@ -108,6 +109,7 @@ void setup()
 
   // Optional, defines the default entrypoint
   server.on("/", [] {
+    server.sendHeader("ETag", String("\"") + indexMd5 + "\"");
     server.sendHeader("Content-Encoding", "gzip");
     server.send_P(200, "text/html", (const char *)static_files::f_index_html_contents, static_files::f_index_html_size);
   });
@@ -116,6 +118,7 @@ void setup()
   for (int i = 0; i < static_files::num_of_files; i++)
   {
     server.on(static_files::files[i].path, [i] {
+      server.sendHeader("ETag", String("\"") + assetsMd5[i] + "\"");
       server.sendHeader("Content-Encoding", "gzip");
       server.send_P(200, static_files::files[i].type, (const char *)static_files::files[i].contents, static_files::files[i].size);
     });
@@ -140,6 +143,7 @@ void loop() {
 #endif
 #include <ESPAsyncWebServer.h>
 #include "web/static_files.h"
+#include <MD5Builder.h>
 
 AsyncWebServer server(80);
 
@@ -164,7 +168,19 @@ void setup()
 
   // Optional, defines the default entrypoint
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+     for (int j = 0; j < request->headers(); j++) {
+      if (request->headerName(j).compareTo(F("If-None-Match")) == 0)
+      {
+        String readed = request->header(j);
+        readed.replace("\"", ""); // some browsers (i.e. Samsung) discard the double quotes
+        if (readed.compareTo(indexMd5) == 0) {
+          request->send(304, "text/plain", F("Not Modified"));
+          return;
+        }
+      }
+    }
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", static_files::f_index_html_contents, static_files::f_index_html_size);
+    response->addHeader("ETag", String("\"") + indexMd5 + "\"");
     response->addHeader("Content-Encoding", "gzip");
     request->send(response);
   });
@@ -173,7 +189,19 @@ void setup()
   for (int i = 0; i < static_files::num_of_files; i++)
   {
     server.on(static_files::files[i].path, HTTP_GET, [i](AsyncWebServerRequest *request) {
+       for (int j = 0; j < request->headers(); j++) {
+        if (request->headerName(j).compareTo(F("If-None-Match")) == 0)
+        {
+          String readed = request->header(j);
+          readed.replace("\"", ""); // some browsers (i.e. Samsung) discard the double quotes
+          if (readed.compareTo(assetsMd5[i]) == 0) {
+            request->send(304, "text/plain", F("Not Modified"));
+            return;
+          }
+        }
+      }
       AsyncWebServerResponse *response = request->beginResponse_P(200, static_files::files[i].type, static_files::files[i].contents, static_files::files[i].size);
+      response->addHeader("ETag", String("\"") + assetsMd5[i] + "\"");
       response->addHeader("Content-Encoding", "gzip");
       request->send(response);
     });
@@ -182,6 +210,27 @@ void setup()
 }
 
 void loop() {}
+```
+## Improved loading using ETAG CACHE.h
+```
+String assetsMd5[static_files::num_of_files + 1] = {""}; // md5 etag values
+String indexMd5 = "";
+
+String file_md5(const uint8_t * index_html_gz, uint32_t index_html_gz_len)
+{
+  uint8_t * buf = new uint8_t[index_html_gz_len];
+  if (buf) {
+    MD5Builder _md5;
+    memcpy_P(buf, index_html_gz, index_html_gz_len);
+    _md5.begin();
+    _md5.add(buf, index_html_gz_len);
+    _md5.calculate();
+    delete(buf); // delete this else it will use large chunks of ram
+    return _md5.toString() + "-a";
+  } else {
+    return "";
+  }
+}
 ```
 
 ## Acknowledgements
